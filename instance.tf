@@ -14,6 +14,8 @@ resource "aws_instance" "server_2048" {
               #!/bin/bash
               set -euo pipefail
 
+              sudo yum check-update && sudo yum update -y
+
               sudo yum install -y docker git
               sudo systemctl enable --now docker
               sudo usermod -aG docker ec2-user
