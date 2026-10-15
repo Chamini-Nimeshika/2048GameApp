@@ -12,11 +12,28 @@ resource "aws_instance" "server_2048" {
 
   user_data = <<-EOF
               #!/bin/bash
-              sudo yum install -y nginx git
-              sudo systemctl start nginx
+              set -euo pipefail
+
+              sudo yum install -y docker git
+              sudo systemctl enable --now docker
+              sudo usermod -aG docker ec2-user
+
               git clone https://github.com/gabrielecirulli/2048.git /tmp/2048
-              sudo cp -r /tmp/2048/* /usr/share/nginx/html/
-              sudo systemctl enable nginx
+              cd /tmp/2048
+
+              cat > Dockerfile <<'DOCKERFILE'
+              FROM nginx:alpine
+              COPY . /usr/share/nginx/html
+              DOCKERFILE
+
+              printf '.git\nDockerfile\n.dockerignore\n' > .dockerignore
+
+              docker build -t 2048-game .
+              docker run -d \
+                --name 2048-game-container \
+                --restart unless-stopped \
+                -p 80:80 \
+                2048-game
             EOF
 }
 
