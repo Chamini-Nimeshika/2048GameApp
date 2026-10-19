@@ -2,9 +2,7 @@ name : Build and deploy 2048-game
 
 on:
   push:
-    branches:
-      - main
-      - dev
+    branches: [main, dev]
     paths:
       - "app/**"
       - ".github/workflows/deploy.yaml"
