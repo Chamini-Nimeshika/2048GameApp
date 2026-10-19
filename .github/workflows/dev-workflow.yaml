@@ -1,0 +1,28 @@
+name : dev - Build 2048-game
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - "app/**"
+      - ".github/workflows/deploy.yaml"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      #Checkout the repository to the GitHub Actions runner
+      - name: Get the code
+        uses: actions/checkout@v7
+
+      - name: Build the image
+        run: docker build -t 2048-game:test ./app
+
+      - name: Smoke test the image
+        run: |
+          docker run -d --name smoke -p 8080:80 2048-game:test
+          curl --fail --silent --show-error --retry 10 --retry-all-errors --retry-delay 2 -o /dev/null http://localhost:8080
+          docker rm -f smoke
