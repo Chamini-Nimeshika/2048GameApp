@@ -1,3 +1,3 @@
-FROM nginx:stable-alpine3.22
+FROM nginx:stable-alpine
 RUN apk update && apk upgrade --no-cache
 COPY . /usr/share/nginx/html
