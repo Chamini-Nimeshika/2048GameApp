@@ -5,6 +5,7 @@ resource "aws_instance" "server_2048" {
   vpc_security_group_ids      = [aws_security_group.sg_2048.id]
   associate_public_ip_address = true
   key_name                    = "2048keypair"
+  iam_instance_profile        = aws_iam_instance_profile.ec2_ssm.name
 
   tags = {
     Name = "server_2048"
@@ -14,26 +15,15 @@ resource "aws_instance" "server_2048" {
               #!/bin/bash
               set -euo pipefail
 
-              sudo yum install -y docker git
-              sudo systemctl enable --now docker
-              sudo usermod -aG docker ec2-user
+              dnf install -y docker
+              systemctl enable --now docker
+              usermod -aG docker ec2-user
 
-              git clone https://github.com/gabrielecirulli/2048.git /tmp/2048
-              cd /tmp/2048
-
-              cat > Dockerfile <<'DOCKERFILE'
-              FROM nginx:alpine
-              COPY . /usr/share/nginx/html
-              DOCKERFILE
-
-              printf '.git\nDockerfile\n.dockerignore\n' > .dockerignore
-
-              docker build -t 2048-game .
               docker run -d \
                 --name 2048-game-container \
                 --restart unless-stopped \
                 -p 80:80 \
-                2048-game
+                ${var.container_image}
             EOF
 }
 
