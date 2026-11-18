@@ -74,7 +74,7 @@ jobs:
             --filters "Name=tag:Name,Values=server_2048" "Name=instance-state-name,Values=running" \
             --query "Reservations[0].Instances[0].PublicIpAddress" --output text)
 
-          if["$INSTANCE_ID" == "None"]; then
+          if [ "$INSTANCE_ID" = "None" ]; then
             echo "No running instance tagged server_2048. Run terraform apply first."
             exit 1
           fi
@@ -87,6 +87,7 @@ jobs:
               "docker run -d --name 2048-game-container --restart unless-stopped -p 80:80 ${IMAGE}"
             ]
           }
+          EOF
 
           COMMAND_ID=$(aws ssm send-command \
             --instance-ids "$INSTANCE_ID" \
