@@ -10,6 +10,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: deploy-2048
+  cancel-in-progress: false
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -45,3 +49,60 @@ jobs:
           docker tag "$IMAGE:$GITHUB_SHA" "$IMAGE:latest"
           docker push "$IMAGE:$GITHUB_SHA"
           docker push "$IMAGE:latest"
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Get short-lived AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Deploy to the running instance
+        run: |
+          IMAGE="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/2048-game:${GITHUB_SHA}"
+
+          INSTANCE_ID=$(aws ec2 describe-instances \
+            --filters "Name=tag:Name,Values=server_2048" "Name=instance-state-name,Values=running" \
+            --query "Reservations[0].Instances[0].InstanceId" --output text)
+          
+          PUBLIC_IP=$(aws ec2 describe-instances \
+            --filters "Name=tag:Name,Values=server_2048" "Name=instance-state-name,Values=running" \
+            --query "Reservations[0].Instances[0].PublicIpAddress" --output text)
+
+          if["$INSTANCE_ID" == "None"]; then
+            echo "No running instance tagged server_2048. Run terraform apply first."
+            exit 1
+          fi
+
+          cat > params.json <<EOF
+          {
+            "commands": [
+              "docker pull ${IMAGE}",
+              "docker rm -f 2048-game-container || true",
+              "docker run -d --name 2048-game-container --restart unless-stopped -p 80:80 ${IMAGE}"
+            ]
+          }
+
+          COMMAND_ID=$(aws ssm send-command \
+            --instance-ids "$INSTANCE_ID" \
+            --document-name "AWS-RunShellScript" \
+            --parameters file://params.json \
+            --query "Command.CommandId" --output text)
+
+          aws ssm wait command-executed --command-id "$COMMAND_ID" --instance-id "$INSTANCE_ID" || {
+            aws ssm get-command-invocation --command-id "$COMMAND_ID" --instance-id "$INSTANCE_ID" \
+              --query "StandardErrorContent" --output text
+            exit 1
+          }
+
+          curl --fail --silent --show-error --retry 10 --retry-all-errors --retry-delay 3 -o /dev/null "http://${PUBLIC_IP}"
+          echo "Deployed ${GITHUB_SHA} to ${PUBLIC_IP}"
+
+
+
+          
