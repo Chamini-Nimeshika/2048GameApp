@@ -55,20 +55,7 @@ jobs:
     permissions:
       id-token: write
       contents: read
-    steps:
-      - name: DEBUG show OIDC claims (remove after)
-        run: |
-          python3 - <<'PY'
-          import os, json, base64, urllib.request
-          url = os.environ["ACTIONS_ID_TOKEN_REQUEST_URL"] + "&audience=sts.amazonaws.com"
-          req = urllib.request.Request(url, headers={"Authorization": "bearer " + os.environ["ACTIONS_ID_TOKEN_REQUEST_TOKEN"]})
-          tok = json.load(urllib.request.urlopen(req))["value"]
-          p = tok.split(".")[1]
-          p += "=" * (-len(p) % 4)
-          c = json.loads(base64.urlsafe_b64decode(p))
-          print({k: c.get(k) for k in ("sub", "aud", "ref", "repository")})
-          PY
-          
+    steps:          
       - name: Get short-lived AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v6
         with:
@@ -87,7 +74,7 @@ jobs:
             --filters "Name=tag:Name,Values=server_2048" "Name=instance-state-name,Values=running" \
             --query "Reservations[0].Instances[0].PublicIpAddress" --output text)
 
-          if["$INSTANCE_ID" == "None"]; then
+          if [ "$INSTANCE_ID" = "None" ]; then
             echo "No running instance tagged server_2048. Run terraform apply first."
             exit 1
           fi
@@ -100,6 +87,7 @@ jobs:
               "docker run -d --name 2048-game-container --restart unless-stopped -p 80:80 ${IMAGE}"
             ]
           }
+          EOF
 
           COMMAND_ID=$(aws ssm send-command \
             --instance-ids "$INSTANCE_ID" \
